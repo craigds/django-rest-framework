@@ -110,8 +110,8 @@ class BaseSerializer(WritableField):
     _dict_class = SortedDictWithMetadata
 
     def __init__(self, instance=None, data=None, files=None,
-                 context=None, partial=False, many=None, source=None, required=True):
-        super(BaseSerializer, self).__init__(source=source)
+                 context=None, partial=False, many=None, **kwargs):
+        super(BaseSerializer, self).__init__(**kwargs)
         self.opts = self._options_class(self.Meta)
         self.parent = None
         self.root = None
@@ -299,13 +299,13 @@ class BaseSerializer(WritableField):
 
         return obj
 
-    def from_native(self, data, files):
+    def from_native(self, data, files=None):
         """
         Deserialize primitives -> objects.
         """
         self._errors = {}
         if data is not None or files is not None:
-            attrs = self.restore_fields(data, files)
+            attrs = self.restore_fields(data, files=files)
             attrs = self.perform_validation(attrs)
         else:
             self._errors['non_field_errors'] = ['No input provided']
