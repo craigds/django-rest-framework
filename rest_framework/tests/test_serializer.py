@@ -1714,6 +1714,8 @@ class SerializerSupportsOverriddenFields(TestCase):
         self.assertIsInstance(s.fields['a_field'], serializers.FloatField)
 
 
+### Regression test for #1088
+
 class WritablePropertyModelSerializer(serializers.ModelSerializer):
     prop = serializers.CharField(source='prop')
     class Meta:
