@@ -7,7 +7,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers, fields, relations
 from rest_framework.tests.models import (HasPositiveIntegerAsChoice, Album, ActionItem, Anchor, BasicModel,
     BlankFieldModel, BlogPost, BlogPostComment, Book, CallableDefaultValueModel, DefaultValueModel,
-    ManyToManyModel, Person, ReadOnlyManyToManyModel, Photo, RESTFrameworkModel)
+    ManyToManyModel, Person, ReadOnlyManyToManyModel, Photo, RESTFrameworkModel, ModelWithWritableProperty)
 from rest_framework.tests.models import BasicModelSerializer
 import datetime
 import pickle
@@ -1712,3 +1712,24 @@ class SerializerSupportsOverriddenFields(TestCase):
         )
         s = OverriddenFieldsMultipleBasesOverridden()
         self.assertIsInstance(s.fields['a_field'], serializers.FloatField)
+
+
+class WritablePropertyModelSerializer(serializers.ModelSerializer):
+    prop = serializers.CharField(source='prop')
+    class Meta:
+        model = ModelWithWritableProperty
+        fields = ('name', 'prop',)
+
+
+class ModelSerializerSupportsWritableProperty(TestCase):
+    def setUp(self):
+        ModelWithWritableProperty.objects.create(name='hey! ')
+
+    def test_modelserializer_create_with_property(self):
+        s = WritablePropertyModelSerializer(data={
+            'name': 'the name',
+            'prop': 'new value',
+        })
+        self.assertTrue(s.is_valid())
+        obj = s.save()
+        self.assertEqual(obj.prop, 'new value')
