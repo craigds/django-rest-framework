@@ -42,6 +42,15 @@ You can determine your currently installed version using `pip freeze`:
 
 ### Master
 
+* Added JSON renderer support for numpy scalars.
+* Added `get_context` hook in `BrowsableAPIRenderer`.
+
+### 2.3.8
+
+**Date**: 11th September 2013
+
+* Added `DjangoObjectPermissions`, and `DjangoObjectPermissionsFilter`.
+* Support customizable exception handling, using the `EXCEPTION_HANDLER` setting.
 * Support customizable view name and description functions, using the `VIEW_NAME_FUNCTION` and `VIEW_DESCRIPTION_FUNCTION` settings.
 * Added `MAX_PAGINATE_BY` setting and `max_paginate_by` generic view attribute.
 * Added `cache` attribute to throttles to allow overriding of default cache.
@@ -49,7 +58,7 @@ You can determine your currently installed version using `pip freeze`:
 * 'Raw data' and 'HTML form' tab preference in browseable API now saved between page views.
 * Bugfix: `required=True` argument fixed for boolean serializer fields.
 * Bugfix: `client.force_authenticate(None)` should also clear session info if it exists.
-* Bugfix: Client sending emptry string instead of file now clears `FileField`.
+* Bugfix: Client sending empty string instead of file now clears `FileField`.
 * Bugfix: Empty values on ChoiceFields with `required=False` now consistently return `None`.
 
 ### 2.3.7
