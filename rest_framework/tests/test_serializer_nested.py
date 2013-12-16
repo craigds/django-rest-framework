@@ -260,6 +260,10 @@ class ForeignKeyNestedSerializerUpdateTests(TestCase):
             def __init__(self, name, artist):
                 self.name, self.artist = name, artist
 
+            @property
+            def extra_component(self):
+                return self
+
             def __eq__(self, other):
                 return self.name == other.name and self.artist == other.artist
 
@@ -285,9 +289,22 @@ class ForeignKeyNestedSerializerUpdateTests(TestCase):
                     instance = Album(attrs['name'], attrs['artist'])
                 return instance
 
+        class DottedSourceAlbumSerializer(serializers.Serializer):
+            name = serializers.CharField()
+            by = ArtistSerializer(source='extra_component.artist')
+
+            def restore_object(self, attrs, instance=None):
+                if instance:
+                    instance.name = attrs['name']
+                    instance.artist = attrs['extra_component.artist']
+                else:
+                    instance = Album(attrs['name'], attrs['extra_component.artist'])
+                return instance
+
         self.Artist = Artist
         self.Album = Album
         self.AlbumSerializer = AlbumSerializer
+        self.DottedSourceAlbumSerializer = DottedSourceAlbumSerializer
 
     def test_create_via_foreign_key_with_source(self):
         """
@@ -312,6 +329,29 @@ class ForeignKeyNestedSerializerUpdateTests(TestCase):
         serializer = self.AlbumSerializer(instance=original, data=data)
         self.assertEqual(serializer.is_valid(), True)
         self.assertEqual(serializer.object, expected)
+
+    def test_create_via_fk_with_dotted_source(self):
+        """
+        Checks that writing to a FK with a dotted source works.
+        """
+        data = {
+            'name': 'Discovery',
+            'by': {'name': 'Daft Punk'},
+        }
+
+        expected = self.Album(artist=self.Artist('Daft Punk'), name='Discovery')
+
+        # create
+        serializer = self.DottedSourceAlbumSerializer(data=data)
+        self.assertEqual(serializer.is_valid(), True)
+        self.assertEqual(serializer.object, expected)
+
+        # update
+        original = self.Album(artist=self.Artist('The Bats'), name='Free All the Monsters')
+        serializer = self.DottedSourceAlbumSerializer(instance=original, data=data)
+        self.assertEqual(serializer.is_valid(), True)
+        self.assertEqual(serializer.object, expected)
+
 
 
 class NestedModelSerializerUpdateTests(TestCase):
