@@ -6,8 +6,8 @@ form encoded input.
 Serialization in REST framework is a two-phase process:
 
 1. Serializers marshal between complex types like model instances, and
-python primatives.
-2. The process of marshalling between python primatives and request and
+python primitives.
+2. The process of marshalling between python primitives and request and
 response content is handled by parsers and renderers.
 """
 from __future__ import unicode_literals
@@ -42,6 +42,7 @@ def pretty_name(name):
 class RelationsList(list):
     _deleted = []
 
+
 class NestedValidationError(ValidationError):
     """
     The default ValidationError behavior is to stringify each item in the list
@@ -56,9 +57,13 @@ class NestedValidationError(ValidationError):
 
     def __init__(self, message):
         if isinstance(message, dict):
-            self.messages = [message]
+            self._messages = [message]
         else:
-            self.messages = message
+            self._messages = message
+
+    @property
+    def messages(self):
+        return self._messages
 
 
 class DictWithMetadata(dict):
@@ -280,10 +285,13 @@ class BaseSerializer(WritableField):
         for field_name, field in self.fields.items():
             if field_name in self._errors:
                 continue
+
+            source = field.source or field_name
+            if self.partial and source not in attrs:
+                continue
             try:
                 validate_method = getattr(self, 'validate_%s' % field_name, None)
                 if validate_method:
-                    source = field.source or field_name
                     attrs = validate_method(attrs, source)
             except ValidationError as err:
                 self._errors[field_name] = self._errors.get(field_name, []) + list(err.messages)
@@ -421,8 +429,22 @@ class BaseSerializer(WritableField):
                 return
 
         # Set the serializer object if it exists
-        obj = get_component(self.parent.object, self.source or field_name) if self.parent.object else None
-        obj = obj.all() if is_simple_callable(getattr(obj, 'all', None)) else obj
+        obj = self.parent.object
+        if obj:
+            if self.source:
+                for component in self.source.split('.'):
+                    if obj is None:
+                        break
+                    obj = get_component(obj, component)
+            else:
+                obj = get_component(obj, field_name)
+
+        # If we have a model manager or similar object then we need
+        # to iterate through each instance.
+        if (self.many and
+            not hasattr(obj, '__iter__') and
+            is_simple_callable(getattr(obj, 'all', None))):
+            obj = obj.all()
 
         if self.source == '*':
             if value:
@@ -809,6 +831,8 @@ class ModelSerializer(Serializer):
         # TODO: TypedChoiceField?
         if model_field.flatchoices:  # This ModelField contains choices
             kwargs['choices'] = model_field.flatchoices
+            if model_field.null:
+                kwargs['empty'] = None
             return ChoiceField(**kwargs)
 
         # put this below the ChoiceField because min_value isn't a valid initializer
@@ -880,13 +904,13 @@ class ModelSerializer(Serializer):
 
         # Reverse fk or one-to-one relations
         for (obj, model) in meta.get_all_related_objects_with_model():
-            field_name = obj.field.related_query_name()
+            field_name = obj.get_accessor_name()
             if field_name in attrs:
                 related_data[field_name] = attrs.pop(field_name)
 
         # Reverse m2m relations
         for (obj, model) in meta.get_all_related_m2m_objects_with_model():
-            field_name = obj.field.related_query_name()
+            field_name = obj.get_accessor_name()
             if field_name in attrs:
                 m2m_data[field_name] = attrs.pop(field_name)
 
@@ -912,7 +936,10 @@ class ModelSerializer(Serializer):
 
         # Update an existing instance...
         for key, val in attrs.items():
-            setattr(instance, key, val)
+            try:
+                setattr(instance, key, val)
+            except ValueError:
+                self._errors[key] = self.error_messages['required']
 
         # Any relations that cannot be set until we've
         # saved the model get hidden away on these
@@ -934,7 +961,7 @@ class ModelSerializer(Serializer):
 
     def save_object(self, obj, **kwargs):
         """
-        Save the deserialized object and return it.
+        Save the deserialized object.
         """
         if getattr(obj, '_nested_forward_relations', None):
             # Nested relationships need to be saved before we can save the
@@ -952,11 +979,16 @@ class ModelSerializer(Serializer):
             del(obj._m2m_data)
 
         if getattr(obj, '_related_data', None):
+            related_fields = dict([
+                (field.get_accessor_name(), field)
+                for field, model
+                in obj._meta.get_all_related_objects_with_model()
+            ])
             for accessor_name, related in obj._related_data.items():
                 if isinstance(related, RelationsList):
                     # Nested reverse fk relationship
                     for related_item in related:
-                        fk_field = obj._meta.get_field_by_name(accessor_name)[0].field.name
+                        fk_field = related_fields[accessor_name].field.name
                         setattr(related_item, fk_field, obj)
                         self.save_object(related_item)
 
