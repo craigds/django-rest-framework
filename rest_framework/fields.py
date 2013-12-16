@@ -14,7 +14,7 @@ import collections
 from decimal import Decimal, DecimalException
 from django import forms
 from django.core import validators
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.conf import settings
 from django.db.models.fields import BLANK_CHOICE_DASH
 from django.http import QueryDict
@@ -60,6 +60,26 @@ def get_component(obj, attr_name):
     if is_simple_callable(val):
         return val()
     return val
+
+
+def set_component(obj, attr_name, value):
+    """
+    Given an object, and an attribute name, set that attribute on the object.
+    Mirrors get_component, except set_component doesn't handle callable
+    components.
+    """
+    if isinstance(obj, dict):
+        obj[attr_name] = value
+    else:
+        try:
+            attr = getattr(obj, attr_name, None)
+        except ObjectDoesNotExist:
+            # happens for non-null FK fields that haven't yet been set.
+            pass
+        else:
+            if six.callable(attr):
+                raise TypeError("%r.%s is a method; can't set it" % (obj, attr_name))
+        setattr(obj, attr_name, value)
 
 
 def readable_datetime_formats(formats):
@@ -182,6 +202,24 @@ class Field(object):
         if self.partial:
             self.required = False
 
+    def _get_source_value(self, obj, field_name):
+        """
+        Given an object and a field name, traverses the components in
+        self.source/field_name and returns the source value from the object.
+
+        The source/field_name may contain dot-separated components.
+        Each component should refer to an attribute, a dict key, or a
+        callable with no arguments.
+        """
+        source = self.source or field_name
+        value = obj
+
+        for component in source.split('.'):
+            if value is None:
+                break
+            value = get_component(value, component)
+        return value
+
     def field_from_native(self, data, files, field_name, into):
         """
         Given a dictionary and a field name, updates the dictionary `into`,
@@ -200,13 +238,7 @@ class Field(object):
         if self.source == '*':
             return self.to_native(obj)
 
-        source = self.source or field_name
-        value = obj
-
-        for component in source.split('.'):
-            value = get_component(value, component)
-            if value is None:
-                break
+        value = self._get_source_value(obj, field_name)
 
         return self.to_native(value)
 
@@ -334,6 +366,37 @@ class WritableField(Field):
         if self.write_only:
             return None
         return super(WritableField, self).field_to_native(obj, field_name)
+
+    def _set_source_value(self, obj, field_name, value):
+        """
+        Looks up a field on the given object and sets its value.
+        Uses self.source if set, otherwise the given field name.
+
+        This obeys the same rules as _get_source_value, except that the
+        final component of self.source/field_name can't be a callable.
+        """
+        source = self.source or field_name
+        parts = source.split('.')
+        last_source_part = parts.pop()
+
+        if parts:
+            if not getattr(obj, '_traversed_objects', None):
+                obj._traversed_objects = []
+            traversed_objects = obj._traversed_objects
+
+        item = obj
+        accessor = ''
+        for component in parts:
+            item = get_component(item, component)
+
+            accessor += ('.' if accessor else '') + component
+            if accessor not in [t[0] for t in traversed_objects]:
+                # prepend so that deeper objects get saved first
+                # TODO: consider a depth first tree traversal, which might cover more
+                #       complex cases.
+                traversed_objects.insert(0, (accessor, item))
+
+        set_component(item, last_source_part, value)
 
     def field_from_native(self, data, files, field_name, into):
         """

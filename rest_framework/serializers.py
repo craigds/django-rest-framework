@@ -361,7 +361,8 @@ class BaseSerializer(WritableField):
         are instantiated.
         """
         if instance is not None:
-            instance.update(attrs)
+            for k, v in attrs.items():
+                self._set_source_value(instance, k, v)
             return instance
         return attrs
 
@@ -474,7 +475,7 @@ class BaseSerializer(WritableField):
                 into[(self.source or field_name)] = None
             else:
                 # Set the serializer object if it exists
-                obj = get_component(self.parent.object, self.source or field_name) if self.parent.object else None
+                obj = self._get_source_value(self.parent.object, field_name)
 
                 # If we have a model manager or similar object then we need
                 # to iterate through each instance.
@@ -484,7 +485,7 @@ class BaseSerializer(WritableField):
                     is_simple_callable(getattr(obj, 'all', None))
                 ):
                     obj = obj.all()
-
+                    
                 kwargs = {
                     'instance': obj,
                     'data': value,
@@ -1033,7 +1034,7 @@ class ModelSerializer(Serializer):
 
         for key, val in attrs.items():
             try:
-                setattr(instance, key, val)
+                self._set_source_value(instance, key, val)
             except ValueError:
                 self._errors[key] = [self.error_messages['required']]
 
@@ -1059,6 +1060,11 @@ class ModelSerializer(Serializer):
         """
         Save the deserialized object.
         """
+        if getattr(obj, '_traversed_objects', None):
+            for accessor_name, sub_object in obj._traversed_objects:
+                if sub_object:
+                    self.save_object(sub_object)
+
         if getattr(obj, '_nested_forward_relations', None):
             # Nested relationships need to be saved before we can save the
             # parent instance.
