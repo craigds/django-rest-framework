@@ -362,10 +362,25 @@ class WritableField(Field):
         parts = source.split('.')
         last_source_part = parts.pop()
 
+        if parts:
+            if not getattr(obj, '_traversed_objects', None):
+                obj._traversed_objects = []
+            traversed_objects = obj._traversed_objects
+
         item = obj
+        accessor = ''
         for component in parts:
             item = get_component(item, component)
+
+            accessor += ('.' if accessor else '') + component
+            if accessor not in [t[0] for t in traversed_objects]:
+                # prepend so that deeper objects get saved first
+                # TODO: consider a depth first tree traversal, which might cover more
+                #       complex cases.
+                traversed_objects.insert(0, (accessor, item))
+
         set_component(item, last_source_part, value)
+
 
     def field_from_native(self, data, files, field_name, into):
         """

@@ -942,6 +942,11 @@ class ModelSerializer(Serializer):
         """
         Save the deserialized object.
         """
+        if getattr(obj, '_traversed_objects', None):
+            for accessor_name, sub_object in obj._traversed_objects:
+                if sub_object:
+                    self.save_object(sub_object)
+
         if getattr(obj, '_nested_forward_relations', None):
             # Nested relationships need to be saved before we can save the
             # parent instance.
