@@ -306,7 +306,8 @@ class BaseSerializer(WritableField):
         are instantiated.
         """
         if instance is not None:
-            instance.update(attrs)
+            for k, v in attrs.items():
+                self._set_source_value(instance, k, v)
             return instance
         return attrs
 
@@ -911,7 +912,7 @@ class ModelSerializer(Serializer):
         if instance is not None:
             for key, val in attrs.items():
                 try:
-                    setattr(instance, key, val)
+                    self._set_source_value(instance, key, val)
                 except ValueError:
                     self._errors[key] = self.error_messages['required']
 
