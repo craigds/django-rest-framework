@@ -412,7 +412,7 @@ class BaseSerializer(WritableField):
 
         # Set the serializer object if it exists
         obj = self.parent.object
-        if obj:
+        if obj and self.source != '*':
             if self.source:
                 for component in self.source.split('.'):
                     if obj is None:
