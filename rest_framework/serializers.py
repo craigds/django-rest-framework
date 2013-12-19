@@ -413,14 +413,8 @@ class BaseSerializer(WritableField):
 
         # Set the serializer object if it exists
         obj = self.parent.object
-        if obj and self.source != '*':
-            if self.source:
-                for component in self.source.split('.'):
-                    if obj is None:
-                        break
-                    obj = get_component(obj, component)
-            else:
-                obj = get_component(obj, field_name)
+        if self.source != '*':
+            obj = self._get_source_value(obj, field_name)
 
         # If we have a model manager or similar object then we need
         # to iterate through each instance.
