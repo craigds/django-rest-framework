@@ -71,7 +71,7 @@ def set_component(obj, attr_name, value):
     else:
         try:
             attr = getattr(obj, attr_name, None)
-        except ObjectDoesNotExist:
+        except (ObjectDoesNotExist, ValueError):
             # happens for non-null FK fields that haven't yet been set.
             pass
         else:
