@@ -448,6 +448,9 @@ class BaseSerializer(WritableField):
         if self.read_only:
             return
 
+        if self._errors is None:
+            self._errors = {}
+
         try:
             value = data[field_name]
         except KeyError:
@@ -462,8 +465,12 @@ class BaseSerializer(WritableField):
         if self.source == '*':
             if value:
                 reverted_data = self.restore_fields(value, {})
+                reverted_data = self.perform_validation(reverted_data)
                 if not self._errors:
                     into.update(reverted_data)
+                else:
+                    # Propagate errors up to our parent
+                    raise NestedValidationError(self._errors)
         else:
             if value in (None, ''):
                 into[(self.source or field_name)] = None
@@ -477,7 +484,7 @@ class BaseSerializer(WritableField):
                     not hasattr(obj, '__iter__') and
                     is_simple_callable(getattr(obj, 'all', None))):
                     obj = obj.all()
-                    
+
                 kwargs = {
                     'instance': obj,
                     'data': value,

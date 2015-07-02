@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.fields import BLANK_CHOICE_DASH
 from django.test import TestCase
@@ -131,7 +132,12 @@ class PersonSerializer(serializers.ModelSerializer):
 
 
 class NestedSerializer(serializers.Serializer):
-    info = serializers.Field()
+    info = serializers.CharField()
+
+    def validate_info(self, attrs, source):
+        if 'error' in attrs[source]:
+            raise ValidationError("there's an error!")
+        return attrs
 
 
 class ModelSerializerWithNestedSerializer(serializers.ModelSerializer):
@@ -518,6 +524,19 @@ class ValidationTests(TestCase):
             'nested': {'info': 'hi'}},
         )
         self.assertEqual(serializer.is_valid(), True)
+
+    def test_writable_star_source_on_nested_serializer_with_errors(self):
+        """
+        Assert that a nested serializer instantiated with source='*' correctly
+        expands errors into the outer serializer.
+        """
+        serializer = ModelSerializerWithNestedSerializer(data={
+            'name': 'marko',
+            'nested': {'info': 'throw an error'}},
+        )
+        self.assertEqual(serializer.errors, {
+            'nested': [{'info': ["there's an error!"]}],
+        })
 
     def test_writable_star_source_on_nested_serializer_with_parent_object(self):
         class TitleSerializer(serializers.Serializer):
