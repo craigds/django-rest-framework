@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 import os.path
 import tempfile
+import pytest
 
 from django.conf.urls import url
 from django.contrib.auth import authenticate, login, logout
