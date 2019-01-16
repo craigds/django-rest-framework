@@ -11,7 +11,7 @@ __title__ = 'Django REST framework'
 __version__ = '3.8.2'
 __author__ = 'Tom Christie'
 __license__ = 'BSD 2-Clause'
-__copyright__ = 'Copyright 2011-2018 Tom Christie'
+__copyright__ = 'Copyright 2011-2019 Encode OSS Ltd'
 
 # Version synonym
 VERSION = __version__
